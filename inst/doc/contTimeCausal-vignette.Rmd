@@ -1,0 +1,348 @@
+---
+title: "contTimeCausal - Continuous Time Causal Models"
+author: "Shu Yang and Shannon T. Holloway"
+date: June 8, 2021
+output: rmarkdown::pdf_document
+vignette: >
+  %\VignetteIndexEntry{contTimeCausal-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+opt <- options()
+options(continue="  ", width=70, prompt=" ")
+on.exit(options(opt))
+library(contTimeCausal, quietly=TRUE)
+```
+
+## Introduction
+
+\textbf{contTimeCausal} is an \textbf{R} package for evaluating the effect of 
+time-varying treatments on a survival outcome. Currently, the package includes 
+a structural failure time model (SFTM) and a Cox marginal structural model (MSM) 
+that respect the continuous time nature of the underlying data processes in 
+practice (i.e., the variables and processes are measured at irregularly spaced 
+time points, which are not necessarily the same for all subjects). 
+
+The SFTM model assumes that the potential failure time, $U$, had the individual 
+never received treatment and the observed failure time, $T$, follow
+
+$$U \thicksim \int_0^T e^{\psi\times A_u}d u, $$
+
+where $\thicksim$ means ``has the same distribution as" and $A_u$ is the 
+treatment indicator at time $u$.
+
+The Cox MSM model assumes that the potential failure time, $T^{\overline{a}}$, 
+under the treatment regime $\overline{a}$ (a hypothetical treatment regime 
+from baseline to the event time) follows a proportional hazards model with the 
+hazard function at $u$ as 
+
+$$\lambda_0(u)e^{\psi\times a_u}.$$
+
+It is assumed that individuals continuously received treatment until time 
+$V$. The observed failure time can be censored. We assume an ignorable 
+censoring mechanism in the sense that the censoring time is independent of the 
+failure time given the treatment and covariate history. 
+
+The implemented methods can accommodate an arbitrary number of baseline and/or 
+time-dependent covariates. If only time-independent covariates are included, 
+the data required for analysis must contain the following information:
+\begin{itemize}
+   \item{\textbf{id}:} A unique participant identifier.
+   \item{\textbf{U}:} The time to the clinical event or censoring.
+   \item{\textbf{deltaU}:} The clinical event indicator (1 if U is the event time;
+                  0 otherwise).
+   \item{\textbf{V}:} The time to optional treatment discontinuation, a clinical 
+             event, censoring, or a treatment-terminating event.
+   \item{\textbf{deltaV}:} The indicator of optional treatment discontinuation 
+                  (1 if treatment discontinuation was optional; 0 if 
+                  treatment discontinuation was due to a clinical event, 
+                  censoring or a treatment-terminating event).
+\end{itemize}
+
+If time-dependent covariates are to be included, the data must be
+a time-dependent dataset as described by package \textbf{survival}. Specifically,
+the time-dependent data must be specified for an interval (lower,upper]
+and the data must include the following additional information:
+\begin{itemize}
+    \item{\textbf{start}:} The lower boundary of the time interval to which the
+                  data pertain.
+    \item{\textbf{stop}:} The upper boundary of the time interval to which the
+                  data pertain.
+\end{itemize}
+
+
+\vspace{.15in}
+
+The SFTM and CoxMSM are implemented through functions \textit{ctSFTM()} and
+\textit{ctCoxMSM()}, respectively. Both functions estimate the
+effect of the treatment regime (in terms of time to treatment discontinuation)
+for a survival outcome with time-varying treatment and confounding in the 
+presence of dependent censoring. Function \textit{ctSFTM()} estimates the effect
+under a continuous time SFTM, and \textit{ctCoxMSM} estimates the effect under a 
+Cox proportional hazards model. The functions return the estimated model
+parameter, $\psi$.
+
+
+## Functions
+
+### \textit{ctSFTM()}
+
+
+This function estimates the effect of time-varying treatments on a survival
+outcome under the SFTM. The value object returned is a continuous-time g-estimator
+of $\psi$.
+
+\vspace{.15in}
+
+
+The function call takes the following form:
+
+```{r eval=FALSE}
+ctSFTM(data, base = NULL, td = NULL)
+```
+where 
+\begin{itemize}
+\item \texttt{data} is a data.frame object containing all required data
+as previously described. If only time-independent covariates are included 
+in the model, the data.frame must use the following column headers:
+`id', `U', `deltaU', `V', and `deltaV', which are defined above. If time-dependent covariates are to be included, the 
+data.frame must be a time-dependent dataset as described by package \textbf{survival}. Specifically, the time-dependent data must be specified for an interval 
+(start,stop] and the data must include two additional columns headers:
+`start' and `stop'.
+
+\item \texttt{base} is a character or numeric vector object or \texttt{NULL}. If
+baseline covariates are included in the model, \texttt{base} must be a vector 
+containing the column headers or the column numbers of \texttt{data} that pertain to the 
+time-independent covariates. If \texttt{NULL}, time-independent covariates are
+excluded from the model.
+
+\item \texttt{td} is a character or numeric vector object or \texttt{NULL} If
+time-dependent covariates are included in the model, \texttt{td} must be a vector 
+containing the column headers or the column numbers of data that pertain to the 
+time-dependent covariates. If \texttt{NULL}, time-dependent covariates are
+excluded from the model. Note that this vector should \underline{not} include required
+columns `start' and `stop'.
+\end{itemize}
+
+Note that only one of \texttt{base} and \texttt{td} can be specified as \texttt{NULL}.
+
+\vspace{.15in}
+
+The value object returned by \textit{ctSFTM()} an S3 object of class \textbf{ctc},
+containing \$psi, the estimated model parameter, and \$coxPH, the
+Cox regression for V.
+
+\vspace{.15in}
+
+### \textit{ctCoxMSM()}
+
+
+This function estimates the effect of time-varying treatments on a survival
+outcome under the Cox proportional hazards model. The value object returned is an inverse probability of treatment weighting estimator of $\psi$.
+
+\vspace{.15in}
+
+
+The function call takes the following form:
+
+```{r eval=FALSE}
+ctCoxMSM(data, base = NULL, td = NULL)
+```
+where the inputs are as defined above for \textit{ctSFTM()} and their descriptions are not
+repeated here.
+
+The value object returned by \textit{ctCoxMSM()} is also an S3 object of
+class \textbf{ctc},
+containing \$psi, the estimated model parameter, and \$coxPH, the
+Cox regression for V.
+
+\vspace{.15in}
+
+### \textit{print()}
+
+A convenience function for displaying the primary results of the analysis.
+
+The function call takes the following form:
+
+```{r eval=FALSE}
+print(x, ...)
+```
+
+where \texttt{x} is the \textbf{ctc} object returned by \textit{ctSFTM()} or
+\textit{ctCoxMSM()}.
+
+\vspace{.15in}
+
+## Examples
+
+To illustrate the call structure and results of \textit{ctSFTM()} and \textit{ctCoxMSM()}, we use the 
+dataset provided with the package, \texttt{ctcData}. This dataset was generated only
+for the purposes of illustrating the package and should not be interpreted
+as representing a real-world dataset. The dataset contains the following
+observations for 1,000 participants:
+
+\begin{itemize}
+   \item{id} A unique participant identifier.
+   \item{start} The left side of the time interval for time-dependent covariate xt.
+   \item{stop} The right side of the time interval for time-dependent covariate xt.
+   \item{xt} A continuous time-dependent covariate.
+   \item{x} A continuous baseline covariate.
+   \item{deltaU} A binary indicator of the clinical event. If the
+                 clinical event occurred, takes value 1; otherwise 0.
+   \item{deltaV} A binary indicator of treatment discontinuation. If
+                 treatment discontinuation was optional, takes value 1.
+                 If treatment discontinuation was due to the clinical
+                 event, censoring, or a treatment-terminating event, takes
+                 value 0.
+   \item{U} The time to the clinical event or censoring.
+   \item{V} The time to optimal treatment discontinuation, the clinical
+            event, censoring, or a treatment-terminating event.
+\end{itemize}
+
+\vspace{.15in}
+  
+    
+The data can be loaded in the usual way
+```{r}
+data(ctcData)
+```
+
+```{r}
+head(ctcData)
+```
+
+\vspace{.15in}
+
+Before considering the summary statistics of the dataset, we break the set into
+time-independent and time-dependent components. The time-independent data can
+be extracted as follows
+```{r}
+ti <- ctcData[,c(5L:9L)]
+ti <- ti %>% distinct()
+```
+where we have eliminated duplicate rows using \textbf{dplyr}'s \textit{distinct()} function.
+The time-dependent component is trivially extracted
+```{r}
+td <- ctcData[,2L:4L]
+```
+
+The summary statistics for the time-independent data
+```{r}
+summary(object = ti)
+```
+show that the binary baseline covariate x is approximately evenly
+distributed across the participants; that $\sim 87\%$ of the participants
+experienced a clinical event; and that for $\sim 30\%$ of the participants treatment
+was optionally discontinued. The maximum time to a clinical event or
+censoring is 28.95. Considering only those participants that optionally
+discontinued treatment
+```{r}
+summary(object = ti$V[ti$deltaV==1L])
+```
+we see that the $0.01 \le V \le 13.67$.
+
+From the summary of the time-dependent data, we see that xt is a continuous
+variable in the range $-7.027 \le xt \le 2.736$. Measurements were taken at time points 
+\{0, 5, 10\}.
+
+```{r}
+summary(object = td)
+```
+
+\vspace{.25in}
+
+
+In the first example, we estimate the parameter of the continuous time SFTM
+using all of the available data as follows
+
+```{r echo=TRUE}
+res <- ctSFTM(data = ctcData, base = "x", td = "xt")
+```
+
+\vspace{.15in}
+
+The value object returned is an S3 object containing the estimated parameter
+and the Cox regression for $V$. As a precaution, we encourage users to verify 
+that the parameters included in the Cox regression are as expected from the input. 
+Here, we see that both $x$ and $xt$ were included. 
+
+
+```{r}
+res
+```
+
+To include only the baseline covariates in the 
+model, we do not change input \texttt{td} from its default setting of \texttt{NULL}.
+
+```{r echo=TRUE}
+ctSFTM(data = ctcData, base = "x")
+```
+
+Note that only $x$ was included in the Cox regression. 
+
+
+\hspace{.25in}
+
+Similarly, to include only the time-dependent covariates, we do not provide input
+\texttt{base}.
+
+```{r echo=TRUE}
+ctSFTM(data = ctcData, td = "xt")
+```
+
+
+\vspace{0.25in}
+
+
+Next we estimate $\psi$ under the continuous time Cox MSM
+using all of the available data
+
+```{r echo=TRUE}
+res <- ctCoxMSM(data = ctcData, base = "x", td = "xt")
+```
+
+\vspace{.15in}
+
+The value object returned is an S3 object containing the estimated parameter
+and the Cox regression for $V$. Notice that the regression results are the 
+same as those obtained above for the full SFTM analysis. The estimated 
+parameter, $\psi$, is
+similar to that obtained under the SFTM with both time-dependent and 
+time-independent covariates.
+
+```{r}
+res
+```
+
+\hspace{.25in}
+
+As for the \texttt{ctSFTM()}, we can also consider only the time-independent
+covariates
+
+```{r echo=TRUE}
+ctCoxMSM(data = ctcData, base = "x")
+```
+
+\hspace{.25in}
+
+Or, to include only the time-dependent covariates
+
+```{r echo=TRUE}
+ctCoxMSM(data = ctcData, td = "xt")
+```
+
+
+\hspace{.25in}
+
+\noindent \textbf{References}
+
+Yang, S., A. A. Tsiatis, and M. Blazing (2018). 
+Modeling survival distribution as a function of time to treatment discontinuation: A dynamic treatment regime approach, 
+\textit{Biometrics}, 74, 900–909.
+
+Yang, S., K. Pieper, and F. Cools (2020). 
+Semiparametric estimation of structural failure time model in continuous-time processes.
+\textit{Biometrika}, 107, 123–136.
